@@ -1,8 +1,7 @@
 use logos::Logos;
 
-
-#[derive(Logos, Debug, PartialEq)]
-enum Token {
+#[derive(Logos, Debug, PartialEq, Clone)]
+pub enum Token {
     #[error]
     Error,
     #[token("Show")]
@@ -97,35 +96,76 @@ enum Token {
     #[regex("\"([^\"]*)\"")]
     Quotes,
 }
-#[derive(PartialEq)]
 
-pub enum Block {
-    Show,
-    Hide,
-    Continue,
-}
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct FilterBlock {
-    pub block: Block,
-}
-impl FilterBlock {
-    pub fn new() -> Self {
-        FilterBlock {
-            block: Block::Show
-        }
-    }
+    pub block: Option<Token>,
 }
 
 pub const TESTFILTER: &str = include_str!("test_filters/filter.filter");
 
-fn cheese() {
+pub fn parse() -> Vec<FilterBlock> {
     let filter_file = include_str!("test_filters/filter.filter");
+    let mut vec: Vec<FilterBlock> = vec![];
+    let mut block = FilterBlock { block: None };
     let mut lex = Token::lexer(filter_file);
     let thing = lex
-        .filter(|i| if i == &Token::Quotes { true } else { false })
-        .map(|x| println!("{:?}", x))
+        .map(|x| match x {
+            Token::Error => {}
+            Token::Show => {
+                vec.push(block.clone());
+                block.block = Some(x);
+            }
+            Token::Hide => {
+                vec.push(block.clone());
+                block.block = Some(x);
+            }
+            Token::Continue => {
+                vec.push(block.clone());
+                block.block = Some(x);
+            }
+            Token::AreaLevel => {}
+            Token::ItemLevel => {}
+            Token::DropLevel => {}
+            Token::Quality => {}
+            Token::Rarity => {}
+            Token::Class => {}
+            Token::BaseType => {}
+            Token::Prophecy => {}
+            Token::LinkedSockets => {}
+            Token::SocketGroup => {}
+            Token::Sockets => {}
+            Token::Height => {}
+            Token::Width => {}
+            Token::HasExplicitMod => {}
+            Token::AnyEnchantment => {}
+            Token::HasEnchantment => {}
+            Token::StackSize => {}
+            Token::GemLevel => {}
+            Token::Identified => {}
+            Token::Corrupted => {}
+            Token::CorruptedMods => {}
+            Token::Mirrored => {}
+            Token::ElderItem => {}
+            Token::ShaperItem => {}
+            Token::HasInfluence => {}
+            Token::FracturedItem => {}
+            Token::SynthesisedItem => {}
+            Token::ShapedMap => {}
+            Token::MapTier => {}
+            Token::SetBorderColor => {}
+            Token::SetTextColor => {}
+            Token::SetBackgroundColor => {}
+            Token::SetFontSize => {}
+            Token::PlayAlertSound => {}
+            Token::PlayAlertSoundPositional => {}
+            Token::DisableDropSound => {}
+            Token::CustomAlertSound => {}
+            Token::MinimapIcon => {}
+            Token::PlayEffect => {}
+            Token::Numbers => {}
+            Token::Quotes => {}
+        })
         .collect::<Vec<_>>();
-}
-pub fn create()-> FilterBlock{
-    FilterBlock::new()
+    vec
 }
