@@ -99,30 +99,53 @@ pub enum Token {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct FilterBlock {
-    pub block: Option<Token>,
+    pub block: Option<TokenAndSpan>,
+    pub hasexplicitmod: Option<TokenAndSpan>,
 }
+#[derive(PartialEq, Debug, Clone)]
 
+pub struct TokenAndSpan {
+    pub token: Token,
+    pub span: std::ops::Range<usize>,
+    pub value: Option<Token>,
+}
 pub const TESTFILTER: &str = include_str!("test_filters/filter.filter");
 
 pub fn parse() -> Vec<FilterBlock> {
     let filter_file = include_str!("test_filters/filter.filter");
     let mut vec: Vec<FilterBlock> = vec![];
-    let mut block = FilterBlock { block: None };
-    let mut lex = Token::lexer(filter_file);
+    let mut block = FilterBlock {
+        block: None,
+        hasexplicitmod: None,
+    };
+    let mut lex = Token::lexer(filter_file).spanned();
+
     let thing = lex
-        .map(|x| match x {
+        .map(|x| match x.0 {
             Token::Error => {}
             Token::Show => {
                 vec.push(block.clone());
-                block.block = Some(x);
+                block.block = Some(TokenAndSpan {
+                    token: x.0,
+                    span: x.1,
+                    value: None,
+                });
             }
             Token::Hide => {
                 vec.push(block.clone());
-                block.block = Some(x);
+                block.block = Some(TokenAndSpan {
+                    token: x.0,
+                    span: x.1,
+                    value: None,
+                });
             }
             Token::Continue => {
                 vec.push(block.clone());
-                block.block = Some(x);
+                block.block = Some(TokenAndSpan {
+                    token: x.0,
+                    span: x.1,
+                    value: None,
+                });
             }
             Token::AreaLevel => {}
             Token::ItemLevel => {}
@@ -137,7 +160,13 @@ pub fn parse() -> Vec<FilterBlock> {
             Token::Sockets => {}
             Token::Height => {}
             Token::Width => {}
-            Token::HasExplicitMod => {}
+            Token::HasExplicitMod => {
+                block.hasexplicitmod = Some(TokenAndSpan {
+                    token: x.0,
+                    span: x.1,
+                    value: None,
+                })
+            }
             Token::AnyEnchantment => {}
             Token::HasEnchantment => {}
             Token::StackSize => {}
