@@ -100,21 +100,21 @@ pub enum Token {
     PlayEffect,
 
     // Values
-    #[regex("[0-9]+")]
-    Numbers,
+    #[regex("[0-9]+", |s| s.slice().to_string())]
+    Numbers(String),
     #[regex("\"([^\"]*)\"", |s| s.slice().to_string())]
     Quotes(String),
-    #[regex("true|false|True|False")]
-    Boolean,
-    #[regex("[a-zA-Z]+")]
-    Text,
+    #[regex("true|false|True|False", |s| s.slice().to_string())]
+    Boolean(String),
+    #[regex("[a-zA-Z]+", |s| s.slice().to_string())]
+    Text(String),
 }
 pub enum KeywordType {
     Conditions,
     Actions,
     Block,
     Operations,
-    Values,
+    Values(String),
 }
 
 impl Token {
@@ -170,10 +170,10 @@ impl Token {
             Token::MinimapIcon => Some(KeywordType::Actions),
             Token::PlayEffect => Some(KeywordType::Actions),
             // values
-            Token::Numbers => Some(KeywordType::Values),
-            Token::Quotes(_) => Some(KeywordType::Values),
-            Token::Boolean => Some(KeywordType::Values),
-            Token::Text => Some(KeywordType::Values),
+            Token::Numbers(s) => Some(KeywordType::Values(s.to_owned())),
+            Token::Quotes(s) => Some(KeywordType::Values(s.to_owned())),
+            Token::Boolean(s) => Some(KeywordType::Values(s.to_owned())),
+            Token::Text(s) => Some(KeywordType::Values(s.to_owned())),
         }
     }
 }
@@ -209,75 +209,35 @@ pub struct ValueAndSpan {
     pub value: String,
 }
 
+fn match_filter(
+    vec: &mut Vec<FilterBlock>,
+    token: Token,
+    span: std::ops::Range<usize>,
+    block: &mut FilterBlock,
+) {
+    if let Some(key) = token.keyword_type() {
+        match key {
+            KeywordType::Block => {
+                new_block(vec, token, span.clone(), block);
+            }
+            KeywordType::Conditions => add_keyword(token, span, block),
+            KeywordType::Actions => add_keyword(token, span, block),
+            KeywordType::Operations => {}
+            KeywordType::Values(s) => {
+                add_values(token, span.clone(), block, s);
+            }
+        }
+    }
+}
+
 pub fn parse(filter_file: &str) -> Vec<FilterBlock> {
     let mut vec: Vec<FilterBlock> = vec![];
     let mut block = FilterBlock::default();
     let mut lex = Token::lexer(filter_file).spanned();
     while let Some((token, span)) = lex.next() {
-        match Some(token.clone()) {
-            Some(Token::Error) => {}
-            Some(Token::Show) => {
-                new_block(&mut vec, token, span, &mut block);
-            }
-            Some(Token::Hide) => {
-                new_block(&mut vec, token, span, &mut block);
-            }
-            Some(Token::Continue) => {
-                new_block(&mut vec, token, span, &mut block);
-            }
-            Some(Token::AreaLevel) => {}
-            Some(Token::ItemLevel) => {}
-            Some(Token::DropLevel) => {}
-            Some(Token::Quality) => {}
-            Some(Token::Rarity) => {}
-            Some(Token::Class) => add_keyword(token, span, &mut block),
-            Some(Token::BaseType) => {}
-            Some(Token::Prophecy) => {}
-            Some(Token::LinkedSockets) => {}
-            Some(Token::SocketGroup) => {}
-            Some(Token::Sockets) => {}
-            Some(Token::Height) => {}
-            Some(Token::Width) => {}
-            Some(Token::HasExplicitMod) => add_keyword(token, span, &mut block),
-            Some(Token::AnyEnchantment) => {}
-            Some(Token::HasEnchantment) => {}
-            Some(Token::StackSize) => {}
-            Some(Token::GemLevel) => {}
-            Some(Token::Identified) => {}
-            Some(Token::Corrupted) => {}
-            Some(Token::CorruptedMods) => {}
-            Some(Token::Mirrored) => {}
-            Some(Token::ElderItem) => {}
-            Some(Token::ShaperItem) => {}
-            Some(Token::HasInfluence) => {}
-            Some(Token::FracturedItem) => {}
-            Some(Token::SynthesisedItem) => {}
-            Some(Token::ShapedMap) => {}
-            Some(Token::MapTier) => {}
-            Some(Token::SetBorderColor) => {}
-            Some(Token::SetTextColor) => {}
-            Some(Token::SetBackgroundColor) => {}
-            Some(Token::SetFontSize) => {}
-            Some(Token::PlayAlertSound) => {}
-            Some(Token::PlayAlertSoundPositional) => {}
-            Some(Token::DisableDropSound) => {}
-            Some(Token::CustomAlertSound) => {}
-            Some(Token::MinimapIcon) => {}
-            Some(Token::PlayEffect) => {}
-            Some(Token::Numbers) => {}
-            Some(Token::Quotes(string)) => {
-                add_values(token, span, &mut block, string);
-            }
-            Some(Token::Hash) => {}
-            Some(Token::Skip) => {}
-            Some(Token::EndLine) => {}
-            Some(Token::Boolean) => {}
-            Some(Token::Text) => {}
-            None => {}
-        }
+        match_filter(&mut vec, token.clone(), span.clone(), &mut block);
     }
     vec.push(block.clone());
-
     vec
 }
 
