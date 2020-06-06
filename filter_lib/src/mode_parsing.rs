@@ -1,4 +1,4 @@
-use logos::{Logos, Lexer};
+use logos::{Lexer, Logos};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Logos)]
 pub enum Token {
@@ -109,6 +109,75 @@ pub enum Token {
     #[regex("[a-zA-Z]+")]
     Text,
 }
+pub enum KeywordType {
+    Conditions,
+    Actions,
+    Block,
+    Operations,
+    Values,
+}
+
+impl Token {
+    pub fn keyword_type(&self) -> Option<KeywordType> {
+        match self {
+            Token::Error => None,
+            Token::Hash => None,
+            Token::Skip => None,
+            Token::EndLine => None,
+            // blocks
+            Token::Show => Some(KeywordType::Block),
+            Token::Hide => Some(KeywordType::Block),
+            Token::Continue => Some(KeywordType::Block),
+            //contisitons
+            Token::AreaLevel => Some(KeywordType::Conditions),
+            Token::ItemLevel => Some(KeywordType::Conditions),
+            Token::DropLevel => Some(KeywordType::Conditions),
+            Token::Quality => Some(KeywordType::Conditions),
+            Token::Rarity => Some(KeywordType::Conditions),
+            Token::Class => Some(KeywordType::Conditions),
+            Token::BaseType => Some(KeywordType::Conditions),
+            Token::Prophecy => Some(KeywordType::Conditions),
+            Token::LinkedSockets => Some(KeywordType::Conditions),
+            Token::SocketGroup => Some(KeywordType::Conditions),
+            Token::Sockets => Some(KeywordType::Conditions),
+            Token::Height => Some(KeywordType::Conditions),
+            Token::Width => Some(KeywordType::Conditions),
+            Token::HasExplicitMod => Some(KeywordType::Conditions),
+            Token::AnyEnchantment => Some(KeywordType::Conditions),
+            Token::HasEnchantment => Some(KeywordType::Conditions),
+            Token::StackSize => Some(KeywordType::Conditions),
+            Token::GemLevel => Some(KeywordType::Conditions),
+            Token::Identified => Some(KeywordType::Conditions),
+            Token::Corrupted => Some(KeywordType::Conditions),
+            Token::CorruptedMods => Some(KeywordType::Conditions),
+            Token::Mirrored => Some(KeywordType::Conditions),
+            Token::ElderItem => Some(KeywordType::Conditions),
+            Token::ShaperItem => Some(KeywordType::Conditions),
+            Token::HasInfluence => Some(KeywordType::Conditions),
+            Token::FracturedItem => Some(KeywordType::Conditions),
+            Token::SynthesisedItem => Some(KeywordType::Conditions),
+            Token::ShapedMap => Some(KeywordType::Conditions),
+            Token::MapTier => Some(KeywordType::Conditions),
+            //actions
+            Token::SetBorderColor => Some(KeywordType::Actions),
+            Token::SetTextColor => Some(KeywordType::Actions),
+            Token::SetBackgroundColor => Some(KeywordType::Actions),
+            Token::SetFontSize => Some(KeywordType::Actions),
+            Token::PlayAlertSound => Some(KeywordType::Actions),
+            Token::PlayAlertSoundPositional => Some(KeywordType::Actions),
+            Token::DisableDropSound => Some(KeywordType::Actions),
+            Token::CustomAlertSound => Some(KeywordType::Actions),
+            Token::MinimapIcon => Some(KeywordType::Actions),
+            Token::PlayEffect => Some(KeywordType::Actions),
+            // values
+            Token::Numbers => Some(KeywordType::Values),
+            Token::Quotes(_) => Some(KeywordType::Values),
+            Token::Boolean => Some(KeywordType::Values),
+            Token::Text => Some(KeywordType::Values),
+        }
+    }
+}
+
 impl Default for Token {
     fn default() -> Self {
         Token::Error
@@ -119,6 +188,7 @@ impl Default for Token {
 pub struct FilterBlock {
     pub block: Option<Token>,
     pub keywords: Vec<TokenAndSpan>,
+    pub bspan: Option<std::ops::Range<usize>>,
 }
 impl FilterBlock {
     pub fn clear(&mut self) -> Self {
@@ -147,26 +217,20 @@ pub fn parse(filter_file: &str) -> Vec<FilterBlock> {
         match Some(token.clone()) {
             Some(Token::Error) => {}
             Some(Token::Show) => {
-                vec.push(block.clone());
-                block.clear();
-                block.block = Some(token.clone())
+                new_block(&mut vec, token, span, &mut block);
             }
             Some(Token::Hide) => {
-                vec.push(block.clone());
-                block.clear();
-                block.block = Some(token.clone())
+                new_block(&mut vec, token, span, &mut block);
             }
             Some(Token::Continue) => {
-                vec.push(block.clone());
-                block.clear();
-                block.block = Some(token.clone())
+                new_block(&mut vec, token, span, &mut block);
             }
             Some(Token::AreaLevel) => {}
             Some(Token::ItemLevel) => {}
             Some(Token::DropLevel) => {}
             Some(Token::Quality) => {}
             Some(Token::Rarity) => {}
-            Some(Token::Class) => {}
+            Some(Token::Class) => add_keyword(token, span, &mut block),
             Some(Token::BaseType) => {}
             Some(Token::Prophecy) => {}
             Some(Token::LinkedSockets) => {}
@@ -174,11 +238,7 @@ pub fn parse(filter_file: &str) -> Vec<FilterBlock> {
             Some(Token::Sockets) => {}
             Some(Token::Height) => {}
             Some(Token::Width) => {}
-            Some(Token::HasExplicitMod) => block.keywords.push(TokenAndSpan {
-                token: token.clone(),
-                span: Some(span),
-                ..Default::default()
-            }),
+            Some(Token::HasExplicitMod) => add_keyword(token, span, &mut block),
             Some(Token::AnyEnchantment) => {}
             Some(Token::HasEnchantment) => {}
             Some(Token::StackSize) => {}
@@ -206,17 +266,7 @@ pub fn parse(filter_file: &str) -> Vec<FilterBlock> {
             Some(Token::PlayEffect) => {}
             Some(Token::Numbers) => {}
             Some(Token::Quotes(string)) => {
-
-                if let Some(last_key) = block.keywords.last_mut() {
-                    last_key.value.push(ValueAndSpan {
-                        token: token.clone(),
-                        span: Some(span),
-                        value: string
-                    });
-                // println!("STRING PLEASE: {:#?}", last_key.value);
-
-                };
-
+                add_values(token, span, &mut block, string);
             }
             Some(Token::Hash) => {}
             Some(Token::Skip) => {}
@@ -229,6 +279,37 @@ pub fn parse(filter_file: &str) -> Vec<FilterBlock> {
     vec.push(block.clone());
 
     vec
+}
+
+fn new_block(
+    vec: &mut Vec<FilterBlock>,
+    token: Token,
+    span: std::ops::Range<usize>,
+    block: &mut FilterBlock,
+) {
+    vec.push(block.clone());
+    block.clear();
+    block.block = Some(token.clone());
+    block.bspan = Some(span)
+}
+
+fn add_keyword(token: Token, span: std::ops::Range<usize>, block: &mut FilterBlock) {
+    block.keywords.push(TokenAndSpan {
+        token: token.clone(),
+        span: Some(span),
+        ..Default::default()
+    })
+}
+
+fn add_values(token: Token, span: std::ops::Range<usize>, block: &mut FilterBlock, string: String) {
+    if let Some(last_key) = block.keywords.last_mut() {
+        last_key.value.push(ValueAndSpan {
+            token: token.clone(),
+            span: Some(span),
+            value: string,
+        });
+        // println!("STRING PLEASE: {:#?}", last_key.value);
+    };
 }
 
 pub fn ignore_comments(lex: &mut Lexer<Token>) {
