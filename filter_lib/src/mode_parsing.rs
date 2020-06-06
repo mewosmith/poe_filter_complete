@@ -3,7 +3,7 @@ use logos::Logos;
 // use logos_derive::Logos;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Logos)]
-pub enum Block {
+pub enum Token {
     #[error]
     Error,
     #[token("Show")]
@@ -12,19 +12,12 @@ pub enum Block {
     Hide,
     #[token("Continue")]
     Continue,
-    #[token("#")]
+    #[token("#", ignore_comments)]
     Hash,
-    // #[regex(" | |", logos::skip)]
-    // Skip,
-}
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Logos)]
-pub enum Outer {
-    #[error]
-    Error,
-    #[token("#")]
-    Hash,
-    // #[regex(" | |", logos::skip)]
-    // Skip,
+    #[regex(" | |", logos::skip)]
+    Skip,
+    #[token("\n")]
+    EndLine,
 
     // Conditions
     #[token("AreaLevel")]
@@ -107,103 +100,138 @@ pub enum Outer {
     MinimapIcon,
     #[token("PlayEffect")]
     PlayEffect,
-}
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Logos)]
-pub enum Inner {
-    #[error]
-    Error,
+    // Values
     #[regex("[0-9]+")]
     Numbers,
     #[regex("\"([^\"]*)\"")]
     Quotes,
-    #[token("\n")]
-    EndLine,
     #[regex("true|false|True|False")]
     Boolean,
     #[regex("[a-zA-Z]+")]
     Text,
-    // #[regex(" ", logos::skip)]
-    // Skip,
-
-    #[token("#")]
-    Hash,
 }
 
-pub enum Modes<'source> {
-    Block(Lexer<'source, Block>),
-    Outer(Lexer<'source, Outer>),
-    Inner(Lexer<'source, Inner>),
+#[derive(PartialEq, Debug, Clone, Default)]
+pub struct FilterBlock<'a> {
+    pub block: Option<Token>,
+    pub conditions: Vec<TokenAndSpan<'a>>,
+    pub actions: Vec<TokenAndSpan<'a>>,
 }
-
-impl<'source> Modes<'source> {
-    pub fn new(s: &'source str) -> Self {
-        Self::Block(Block::lexer(s))
+impl<'a> FilterBlock<'a> {
+    pub fn clear(&mut self) -> Self {
+        FilterBlock::default()
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Tokens {
-    InnerToken(Inner),
-    OuterToken(Outer),
-    BlockToken(Block),
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub struct TokenAndSpan<'a> {
+    pub token: Token,
+    pub span: Span,
+    pub value: &'a str,
+}
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub struct Span {
+    start: usize,
+    end: usize,
 }
 
-pub struct ModeBridge<'source> {
-    pub mode: Modes<'source>,
-}
+pub fn parse<'a>(filter_file: &'a str) -> Vec<FilterBlock<'a>> {
+    let mut vec: Vec<FilterBlock> = vec![];
+    let mut block = FilterBlock::default();
 
-// Clones as we switch between modes
-impl<'source> Iterator for ModeBridge<'source> {
-    type Item = Tokens;
-    fn next(&mut self) -> Option<Self::Item> {
-        use Tokens::*;
-        match &mut self.mode {
-            Modes::Inner(inner) => {
-                let result = inner.next();
-                if Some(Inner::EndLine) == result {
-                    self.mode = Modes::Outer(inner.to_owned().morph());
+    let mut lex = Token::lexer(filter_file);
+
+    loop {
+        match lex.next() {
+            Some(Token::Error) => {}
+            Some(Token::Show) => {
+                if let Some(_) = block.block {
+                    vec.push(block.clone());
+                    block.clear();
                 }
-                result.map(InnerToken)
+                block.block = Some(Token::Show)
             }
-            Modes::Outer(outer) => {
-                let result = outer.next();
-                if Some(Outer::Error) != result
-                    && Some(Outer::Hash) != result
-                    // && Some(Outer::Skip) != result
-                    && None != result
-                {
-                    self.mode = Modes::Inner(outer.to_owned().morph());
+            Some(Token::Hide) => {
+                if let Some(_) = block.block {
+                    vec.push(block.clone());
+                    block.clear();
                 }
-                result.map(OuterToken)
+                block.block = Some(Token::Hide)
             }
-            Modes::Block(block) => {
-                let result = block.next();
-                if Some(Block::Show) == result
-                    || Some(Block::Hide) == result
-                    || Some(Block::Continue) == result
-                {
-                    self.mode = Modes::Outer(block.to_owned().morph());
+            Some(Token::Continue) => {
+                if let Some(_) = block.block {
+                    vec.push(block.clone());
+                    block.clear();
                 }
-                result.map(BlockToken)
+                block.block = Some(Token::Continue)
+            }
+            Some(Token::AreaLevel) => {}
+            Some(Token::ItemLevel) => {}
+            Some(Token::DropLevel) => {}
+            Some(Token::Quality) => {}
+            Some(Token::Rarity) => {}
+            Some(Token::Class) => {}
+            Some(Token::BaseType) => {}
+            Some(Token::Prophecy) => {}
+            Some(Token::LinkedSockets) => {}
+            Some(Token::SocketGroup) => {}
+            Some(Token::Sockets) => {}
+            Some(Token::Height) => {}
+            Some(Token::Width) => {}
+            Some(Token::HasExplicitMod) => {}
+            Some(Token::AnyEnchantment) => {}
+            Some(Token::HasEnchantment) => {}
+            Some(Token::StackSize) => {}
+            Some(Token::GemLevel) => {}
+            Some(Token::Identified) => {}
+            Some(Token::Corrupted) => {}
+            Some(Token::CorruptedMods) => {}
+            Some(Token::Mirrored) => {}
+            Some(Token::ElderItem) => {}
+            Some(Token::ShaperItem) => {}
+            Some(Token::HasInfluence) => {}
+            Some(Token::FracturedItem) => {}
+            Some(Token::SynthesisedItem) => {}
+            Some(Token::ShapedMap) => {}
+            Some(Token::MapTier) => {}
+            Some(Token::SetBorderColor) => {}
+            Some(Token::SetTextColor) => {}
+            Some(Token::SetBackgroundColor) => {}
+            Some(Token::SetFontSize) => {}
+            Some(Token::PlayAlertSound) => {}
+            Some(Token::PlayAlertSoundPositional) => {}
+            Some(Token::DisableDropSound) => {}
+            Some(Token::CustomAlertSound) => {}
+            Some(Token::MinimapIcon) => {}
+            Some(Token::PlayEffect) => {}
+            Some(Token::Numbers) => {}
+            Some(Token::Quotes) => {}
+            Some(Token::Hash) => {}
+            Some(Token::Skip) => {}
+            Some(Token::EndLine) => {}
+            Some(Token::Boolean) => {}
+            Some(Token::Text) => {}
+            Some(_) => {}
+            None => {
+                if let Some(b) = block.block {
+                    vec.push(block.clone());
+                }
+                break;
             }
         }
     }
+    vec
 }
 
-pub fn ignore_comments(lex: &mut Lexer<Outer>) -> Option<Outer> {
-
-    // if lex.slice() == "#" {
-        let result = lex.next();
-        println!("hola {:?}", result);
-        // loop {
-        //     match lex.next() {
-        //          => {}
-        //         _ => {lex.bump(lex.slice().len())}
-        //     }
-        // }
-
-    // }
-
-    None
+pub fn ignore_comments(lex: &mut Lexer<Token>) {
+    if lex.slice() == "#" {
+        loop {
+            // let result = lex.next();
+            match lex.next() {
+                Some(Token::EndLine) => break,
+                _ => {}
+            }
+        }
+    }
 }
