@@ -1,4 +1,4 @@
-Show #$type->expl->rare
+Continue #$type->expl->rare
 	Corrupted False
 	Identified True
 	Class "Rune Dagger" "Sceptres" "Wands"
@@ -16,7 +16,7 @@ Show #$type->expl->rare
 #   [1202] Rare Item Permutations
 #------------------------------------
 
-Show # $type->expl->rare
+Hide # $type->expl->rare
 	Identified True
 	DropLevel > 50
 	Rarity Rare

@@ -6,7 +6,15 @@ mod tests {
     fn test_new_filter_block() {
         let filter_file = include_str!("../src/test_filters/small.filter");
         let x = mode_parsing::parse(filter_file);
-        println!("{:#?}", x)
+        // for b in x.iter(){
+        //     for k in b.keywords.iter(){
+        //  println!("{:#?}", k.value);
+
+        //     }
+        // }
+        println!("{:#?}", x);
+        // println!("{:#?}", x.len());
+
     }
 
     // #[test]

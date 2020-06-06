@@ -1,8 +1,6 @@
-use logos::Lexer;
-use logos::Logos;
-// use logos_derive::Logos;
+use logos::{Logos, Lexer};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Logos)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Logos)]
 pub enum Token {
     #[error]
     Error,
@@ -104,67 +102,64 @@ pub enum Token {
     // Values
     #[regex("[0-9]+")]
     Numbers,
-    #[regex("\"([^\"]*)\"")]
-    Quotes,
+    #[regex("\"([^\"]*)\"", |s| s.slice().to_string())]
+    Quotes(String),
     #[regex("true|false|True|False")]
     Boolean,
     #[regex("[a-zA-Z]+")]
     Text,
 }
+impl Default for Token {
+    fn default() -> Self {
+        Token::Error
+    }
+}
 
 #[derive(PartialEq, Debug, Clone, Default)]
-pub struct FilterBlock<'a> {
+pub struct FilterBlock {
     pub block: Option<Token>,
-    pub conditions: Vec<TokenAndSpan<'a>>,
-    pub actions: Vec<TokenAndSpan<'a>>,
+    pub keywords: Vec<TokenAndSpan>,
 }
-impl<'a> FilterBlock<'a> {
+impl FilterBlock {
     pub fn clear(&mut self) -> Self {
         FilterBlock::default()
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub struct TokenAndSpan<'a> {
+#[derive(PartialEq, Debug, Default, Clone)]
+pub struct TokenAndSpan {
     pub token: Token,
-    pub span: Span,
-    pub value: &'a str,
+    pub span: Option<std::ops::Range<usize>>,
+    pub value: Vec<ValueAndSpan>,
 }
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub struct Span {
-    start: usize,
-    end: usize,
+#[derive(PartialEq, Debug, Default, Clone)]
+pub struct ValueAndSpan {
+    pub token: Token,
+    pub span: Option<std::ops::Range<usize>>,
+    pub value: String,
 }
 
-pub fn parse<'a>(filter_file: &'a str) -> Vec<FilterBlock<'a>> {
+pub fn parse(filter_file: &str) -> Vec<FilterBlock> {
     let mut vec: Vec<FilterBlock> = vec![];
     let mut block = FilterBlock::default();
-
-    let mut lex = Token::lexer(filter_file);
-
-    loop {
-        match lex.next() {
+    let mut lex = Token::lexer(filter_file).spanned();
+    while let Some((token, span)) = lex.next() {
+        match Some(token.clone()) {
             Some(Token::Error) => {}
             Some(Token::Show) => {
-                if let Some(_) = block.block {
-                    vec.push(block.clone());
-                    block.clear();
-                }
-                block.block = Some(Token::Show)
+                vec.push(block.clone());
+                block.clear();
+                block.block = Some(token.clone())
             }
             Some(Token::Hide) => {
-                if let Some(_) = block.block {
-                    vec.push(block.clone());
-                    block.clear();
-                }
-                block.block = Some(Token::Hide)
+                vec.push(block.clone());
+                block.clear();
+                block.block = Some(token.clone())
             }
             Some(Token::Continue) => {
-                if let Some(_) = block.block {
-                    vec.push(block.clone());
-                    block.clear();
-                }
-                block.block = Some(Token::Continue)
+                vec.push(block.clone());
+                block.clear();
+                block.block = Some(token.clone())
             }
             Some(Token::AreaLevel) => {}
             Some(Token::ItemLevel) => {}
@@ -179,7 +174,11 @@ pub fn parse<'a>(filter_file: &'a str) -> Vec<FilterBlock<'a>> {
             Some(Token::Sockets) => {}
             Some(Token::Height) => {}
             Some(Token::Width) => {}
-            Some(Token::HasExplicitMod) => {}
+            Some(Token::HasExplicitMod) => block.keywords.push(TokenAndSpan {
+                token: token.clone(),
+                span: Some(span),
+                ..Default::default()
+            }),
             Some(Token::AnyEnchantment) => {}
             Some(Token::HasEnchantment) => {}
             Some(Token::StackSize) => {}
@@ -206,21 +205,29 @@ pub fn parse<'a>(filter_file: &'a str) -> Vec<FilterBlock<'a>> {
             Some(Token::MinimapIcon) => {}
             Some(Token::PlayEffect) => {}
             Some(Token::Numbers) => {}
-            Some(Token::Quotes) => {}
+            Some(Token::Quotes(string)) => {
+
+                if let Some(last_key) = block.keywords.last_mut() {
+                    last_key.value.push(ValueAndSpan {
+                        token: token.clone(),
+                        span: Some(span),
+                        value: string
+                    });
+                // println!("STRING PLEASE: {:#?}", last_key.value);
+
+                };
+
+            }
             Some(Token::Hash) => {}
             Some(Token::Skip) => {}
             Some(Token::EndLine) => {}
             Some(Token::Boolean) => {}
             Some(Token::Text) => {}
-            Some(_) => {}
-            None => {
-                if let Some(b) = block.block {
-                    vec.push(block.clone());
-                }
-                break;
-            }
+            None => {}
         }
     }
+    vec.push(block.clone());
+
     vec
 }
 
